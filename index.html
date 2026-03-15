@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Love_QnA</title>
+  <meta name="description" content="서로에게 궁금한 질문을 남기고 답변하며 추억처럼 기록하는 둘만의 질문 사이트" />
+  <meta name="theme-color" content="#b8a7ff" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="마음 질문 사이트" />
+  <meta property="og:title" content="마음 질문 사이트" />
+  <meta property="og:description" content="서로에게 궁금한 질문을 남기고 답변하며 추억처럼 기록하는 둘만의 질문 사이트" />
+  <meta property="og:image" content="icon.ico" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="마음 질문 사이트" />
+  <meta name="twitter:description" content="서로에게 궁금한 질문을 남기고 답변하며 추억처럼 기록하는 둘만의 질문 사이트" />
+  <link rel="icon" href="icon.ico" sizes="any" />
+  <link rel="shortcut icon" href="icon.ico" />
+  <link rel="apple-touch-icon" href="icon.ico" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">MADE FOR US</p>
+        <h1>서로를 더 알아가는 질문 사이트</h1>
+        <p class="sub">
+          각자가 서로에게 궁금한 점들을 언제든지 질문하고 답변하고 기억할 수 있도록 만들었어
+        </p>
+
+        <div class="milestone-grid">
+          <div class="dday-box">
+            <div class="dday-label">우리의 시작일</div>
+            <div class="dday-date">2026.03.14</div>
+            <div class="dday-count" id="ddayCount">D+1</div>
+          </div>
+
+          <div class="mini-day-box">
+            <div class="mini-day-label">D+100</div>
+            <div class="mini-day-date" id="day100Date">2026.06.21</div>
+          </div>
+
+          <div class="mini-day-box">
+            <div class="mini-day-label">D+365</div>
+            <div class="mini-day-date" id="day365Date">2027.03.13</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid two">
+      <a class="card nav-card" href="my-page.html">
+        <div class="badge_1">PAGE 1</div>
+        <h2>현수만 들어와</h2>
+        <p>나의 질문을 추가하고, 상대방의 질문에 답변해주세요.</p>
+      </a>
+
+      <a class="card nav-card" href="partner-page.html">
+        <div class="badge_2">PAGE 2</div>
+        <h2>예지만 들어와</h2>
+        <p>나의 질문을 추가하고, 상대방의 질문에 답변해주세요.</p>
+      </a>
+    </main>
+<!--
+    <section class="card info-box">
+      <h3>동작 방식</h3>
+      <ol>
+        <li>Firebase 설정 전에는 브라우저 저장소(localStorage)로 테스트할 수 있습니다.</li>
+        <li><code>firebase-config.js</code>에 Firebase 웹 설정값을 넣으면 Firestore DB와 연동됩니다.</li>
+        <li>현수 페이지와 예지 페이지 모두 같은 질문 목록을 공유합니다.</li>
+      </ol>
+      <p class="muted">
+        참고: 사용자가 보내준 <strong>serviceAccountKey.json</strong> 방식은 서버/백엔드용 Admin SDK 방식이라 브라우저 페이지에 직접 넣으면 안 됩니다.
+        그래서 이 버전은 웹에서는 Firebase Web SDK로 Firestore를 연결하고, 별도로 Admin SDK 예제 파일도 함께 넣어두었습니다.
+      </p>
+    </section>
+  -->
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
