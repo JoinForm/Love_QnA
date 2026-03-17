@@ -4,6 +4,7 @@ let useFirebase = false;
 let db = null;
 
 const STORAGE_KEY = 'loveQnaQuestionsV4';
+const READ_STATE_KEY = 'loveQnaReadStateV1';
 
 async function initFirebaseIfPossible() {
   if (!FIREBASE_ENABLED) {
@@ -54,6 +55,27 @@ function createId() {
   return 'q_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+function getReadState() {
+  try {
+    return JSON.parse(localStorage.getItem(READ_STATE_KEY)) || {
+      myPageLastReadAt: '',
+      partnerPageLastReadAt: ''
+    };
+  } catch (error) {
+    return {
+      myPageLastReadAt: '',
+      partnerPageLastReadAt: ''
+    };
+  }
+}
+
+function setReadState(patch) {
+  const current = getReadState();
+  const next = { ...current, ...patch };
+  localStorage.setItem(READ_STATE_KEY, JSON.stringify(next));
+}
+
+
 function renderDday() {
   const start = new Date('2026-03-14T00:00:00');
   const today = new Date();
@@ -86,6 +108,55 @@ function renderDday() {
 
   if (day100El) day100El.textContent = formatShort(day100);
   if (day365El) day365El.textContent = formatShort(day365);
+}
+
+async function renderHomeNewBadges() {
+  const myBadge = document.getElementById('myPageNewBadge');
+  const partnerBadge = document.getElementById('partnerPageNewBadge');
+  if (!myBadge || !partnerBadge) return;
+
+  const questions = await loadQuestions();
+  const readState = getReadState();
+
+  const myLastRead = readState.myPageLastReadAt ? new Date(readState.myPageLastReadAt) : null;
+  const partnerLastRead = readState.partnerPageLastReadAt ? new Date(readState.partnerPageLastReadAt) : null;
+
+  // 현수 페이지 NEW
+  // 1) 예지가 새 질문 등록
+  // 2) 예지가 현수 질문에 답변 등록
+  const hasNewForMyPage = questions.some((item) => {
+    const isNewPartnerQuestion =
+      item.owner === 'partner' &&
+      item.createdAt &&
+      (!myLastRead || new Date(item.createdAt) > myLastRead);
+
+    const isNewPartnerAnswer =
+      item.owner === 'me' &&
+      item.answeredAt &&
+      (!myLastRead || new Date(item.answeredAt) > myLastRead);
+
+    return isNewPartnerQuestion || isNewPartnerAnswer;
+  });
+
+  // 예지 페이지 NEW
+  // 1) 현수가 새 질문 등록
+  // 2) 현수가 예지 질문에 답변 등록
+  const hasNewForPartnerPage = questions.some((item) => {
+    const isNewMyQuestion =
+      item.owner === 'me' &&
+      item.createdAt &&
+      (!partnerLastRead || new Date(item.createdAt) > partnerLastRead);
+
+    const isNewMyReply =
+      item.owner === 'partner' &&
+      item.myReplyAt &&
+      (!partnerLastRead || new Date(item.myReplyAt) > partnerLastRead);
+
+    return isNewMyQuestion || isNewMyReply;
+  });
+
+  myBadge.hidden = !hasNewForMyPage;
+  partnerBadge.hidden = !hasNewForPartnerPage;
 }
 
 async function loadQuestions() {
@@ -274,6 +345,9 @@ async function renderMyPage() {
   if (!list || !count) return;
 
   const questions = await loadQuestions();
+  setReadState({
+    myPageLastReadAt: new Date().toISOString()
+  });
   count.textContent = questions.length;
 
   if (!questions.length) {
@@ -287,6 +361,8 @@ async function renderMyPage() {
 
   list.querySelectorAll('[data-delete-id]').forEach((button) => {
     button.addEventListener('click', async () => {
+      const ok = confirm('정말 이 질문을 삭제할까요?');
+      if (!ok) return;
       await removeQuestion(button.dataset.deleteId);
       await renderMyPage();
     });
@@ -302,6 +378,7 @@ async function renderMyPage() {
         myReplyToPartnerQuestion: value,
         myReplyAt: new Date().toISOString()
       });
+      await renderHomeNewBadges();
 
       await renderMyPage();
       alert('현수 답변이 저장되었습니다.');
@@ -315,6 +392,9 @@ async function renderPartnerPage() {
   if (!list || !count) return;
 
   const questions = await loadQuestions();
+  setReadState({
+    partnerPageLastReadAt: new Date().toISOString()
+  });
   count.textContent = questions.length;
 
   if (!questions.length) {
@@ -336,6 +416,7 @@ async function renderPartnerPage() {
         partnerAnswer: value,
         answeredAt: new Date().toISOString()
       });
+      await renderHomeNewBadges();
 
       await renderPartnerPage();
       alert('예지 답변이 저장되었습니다.');
@@ -344,6 +425,8 @@ async function renderPartnerPage() {
 
   list.querySelectorAll('[data-delete-id]').forEach((button) => {
     button.addEventListener('click', async () => {
+      const ok = confirm('정말 이 질문을 삭제할까요?');
+      if (!ok) return;
       await removeQuestion(button.dataset.deleteId);
       await renderPartnerPage();
     });
@@ -375,6 +458,8 @@ function bindMyPageActions() {
       myReplyToPartnerQuestion: '',
       createdAt: new Date().toISOString()
     });
+
+    await renderHomeNewBadges();
 
     form.reset();
     await renderMyPage();
@@ -408,6 +493,8 @@ function bindPartnerPageActions() {
       createdAt: new Date().toISOString()
     });
 
+    await renderHomeNewBadges();
+
     form.reset();
     await renderPartnerPage();
     alert('예지 질문이 추가되었습니다.');
@@ -419,7 +506,10 @@ async function init() {
   await initFirebaseIfPossible();
 
   const page = document.body.dataset.page;
-  if (page === 'my') {
+
+  if (page === 'home') {
+    await renderHomeNewBadges();
+  } else if (page === 'my') {
     bindMyPageActions();
     await renderMyPage();
   } else if (page === 'partner') {
