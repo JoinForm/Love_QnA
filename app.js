@@ -5,6 +5,7 @@ let db = null;
 
 const STORAGE_KEY = 'loveQnaQuestionsV4';
 const READ_STATE_KEY = 'loveQnaReadStateV1';
+const READ_STATE_COLLECTION = 'loveQnaReadState';
 
 async function initFirebaseIfPossible() {
   if (!FIREBASE_ENABLED) {
@@ -14,7 +15,8 @@ async function initFirebaseIfPossible() {
   try {
     const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
     const {
-      getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy
+      getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc,
+      doc, query, orderBy, getDoc, setDoc
     } = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js');
 
     console.log('[Firebase] config =', firebaseWebConfig);
@@ -23,7 +25,8 @@ async function initFirebaseIfPossible() {
     const firestore = getFirestore(app);
 
     db = {
-      getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy,
+      getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc,
+      doc, query, orderBy, getDoc, setDoc,
       instance: firestore
     };
 
@@ -55,7 +58,24 @@ function createId() {
   return 'q_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-function getReadState() {
+async function getReadState() {
+  if (useFirebase && db) {
+    try {
+      const [hyunsuSnap, yejiSnap] = await Promise.all([
+        db.getDoc(db.doc(db.instance, READ_STATE_COLLECTION, 'hyunsu')),
+        db.getDoc(db.doc(db.instance, READ_STATE_COLLECTION, 'yeji'))
+      ]);
+
+      return {
+        myPageLastReadAt: hyunsuSnap.exists() ? (hyunsuSnap.data().lastReadAt || '') : '',
+        partnerPageLastReadAt: yejiSnap.exists() ? (yejiSnap.data().lastReadAt || '') : ''
+      };
+    } catch (error) {
+      console.error('Firestore 읽음 상태 조회 실패:', error);
+    }
+  }
+
+  // Firebase 미사용 시 localStorage fallback
   try {
     return JSON.parse(localStorage.getItem(READ_STATE_KEY)) || {
       myPageLastReadAt: '',
@@ -69,10 +89,49 @@ function getReadState() {
   }
 }
 
-function setReadState(patch) {
-  const current = getReadState();
-  const next = { ...current, ...patch };
-  localStorage.setItem(READ_STATE_KEY, JSON.stringify(next));
+async function setReadState(patch) {
+  if (useFirebase && db) {
+    try {
+      const jobs = [];
+
+      if (patch.myPageLastReadAt) {
+        jobs.push(
+          db.setDoc(
+            db.doc(db.instance, READ_STATE_COLLECTION, 'hyunsu'),
+            { lastReadAt: patch.myPageLastReadAt },
+            { merge: true }
+          )
+        );
+      }
+
+      if (patch.partnerPageLastReadAt) {
+        jobs.push(
+          db.setDoc(
+            db.doc(db.instance, READ_STATE_COLLECTION, 'yeji'),
+            { lastReadAt: patch.partnerPageLastReadAt },
+            { merge: true }
+          )
+        );
+      }
+
+      await Promise.all(jobs);
+      return;
+    } catch (error) {
+      console.error('Firestore 읽음 상태 저장 실패:', error);
+    }
+  }
+
+  // Firebase 미사용 시 localStorage fallback
+  try {
+    const current = JSON.parse(localStorage.getItem(READ_STATE_KEY)) || {
+      myPageLastReadAt: '',
+      partnerPageLastReadAt: ''
+    };
+    const next = { ...current, ...patch };
+    localStorage.setItem(READ_STATE_KEY, JSON.stringify(next));
+  } catch (error) {
+    console.error('로컬 읽음 상태 저장 실패:', error);
+  }
 }
 
 
@@ -110,13 +169,31 @@ function renderDday() {
   if (day365El) day365El.textContent = formatShort(day365);
 }
 
+async function ensureReadStateInitialized() {
+  const readState = await getReadState();
+  const now = new Date().toISOString();
+  const patch = {};
+
+  if (!readState.myPageLastReadAt) {
+    patch.myPageLastReadAt = now;
+  }
+
+  if (!readState.partnerPageLastReadAt) {
+    patch.partnerPageLastReadAt = now;
+  }
+
+  if (Object.keys(patch).length > 0) {
+    await setReadState(patch);
+  }
+}
+
 async function renderHomeNewBadges() {
   const myBadge = document.getElementById('myPageNewBadge');
   const partnerBadge = document.getElementById('partnerPageNewBadge');
   if (!myBadge || !partnerBadge) return;
 
   const questions = await loadQuestions();
-  const readState = getReadState();
+  const readState = await getReadState();
 
   const myLastRead = readState.myPageLastReadAt ? new Date(readState.myPageLastReadAt) : null;
   const partnerLastRead = readState.partnerPageLastReadAt ? new Date(readState.partnerPageLastReadAt) : null;
@@ -345,7 +422,7 @@ async function renderMyPage() {
   if (!list || !count) return;
 
   const questions = await loadQuestions();
-  setReadState({
+  await setReadState({
     myPageLastReadAt: new Date().toISOString()
   });
   count.textContent = questions.length;
@@ -364,6 +441,7 @@ async function renderMyPage() {
       const ok = confirm('정말 이 질문을 삭제할까요?');
       if (!ok) return;
       await removeQuestion(button.dataset.deleteId);
+      await renderHomeNewBadges();
       await renderMyPage();
     });
   });
@@ -392,7 +470,7 @@ async function renderPartnerPage() {
   if (!list || !count) return;
 
   const questions = await loadQuestions();
-  setReadState({
+  await setReadState({
     partnerPageLastReadAt: new Date().toISOString()
   });
   count.textContent = questions.length;
@@ -428,6 +506,7 @@ async function renderPartnerPage() {
       const ok = confirm('정말 이 질문을 삭제할까요?');
       if (!ok) return;
       await removeQuestion(button.dataset.deleteId);
+      await renderHomeNewBadges();
       await renderPartnerPage();
     });
   });
@@ -504,6 +583,7 @@ function bindPartnerPageActions() {
 async function init() {
   renderDday();
   await initFirebaseIfPossible();
+  await ensureReadStateInitialized();
 
   const page = document.body.dataset.page;
 
